@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quét vận đơn SPX</title>
+
+<style>
+body {
+  margin: 0;
+  background: #1e1e1e;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app {
+  width: 100%;
+  max-width: 380px;
+  background: #121212;
+  border-radius: 18px;
+  padding: 16px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* 🔴 DÒNG CHỮ CHẠY */
+.marquee {
+  background: #ff6a00;
+  color: #fff;
+  font-weight: 600;
+  padding: 8px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.marquee span {
+  display: inline-block;
+  white-space: nowrap;
+  animation: scroll 12s linear infinite;
+}
+
+@keyframes scroll {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(-100%); }
+}
+
+/* LOGO */
+.logo img {
+  height: 48px;
+  margin: 8px 0;
+}
+
+h2 {
+  color: #fff;
+  margin: 10px 0 14px;
+}
+
+input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  font-size: 16px;
+  text-align: center;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+button {
+  padding: 14px;
+  font-size: 15px;
+  border-radius: 10px;
+  border: none;
+  color: #fff;
+}
+
+.scan { background: #ff6a00; }
+.paste { background: #ffc107; color: #000; }
+.copy { background: #198754; }
+.qr { background: #6f42c1; }
+
+.qr-box {
+  margin-top: 16px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+#qrCanvas {
+  width: 220px;
+  height: 220px;
+}
+
+video {
+  width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+  display: none;
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- 🔴 MARQUEE -->
+  <div class="marquee" id="marquee">
+    <span id="marqueeText">THÔNG BÁO NỘI BỘ SPX – CHỈ DÙNG CHO NHÂN SỰ</span>
+  </div>
+
+  <!-- LOGO SPX -->
+  <div class="logo">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2e/Shopee_Express_logo.svg">
+  </div>
+
+  <h2>Quét vận đơn SPX</h2>
+
+  <input id="code" placeholder="Mã vận đơn">
+
+  <div class="buttons">
+    <button class="scan" onclick="startScan()">📷 Quét</button>
+    <button class="paste" onclick="pasteCode()">📌 Dán</button>
+    <button class="copy" onclick="copyCode()">📋 Copy</button>
+    <button class="qr" onclick="makeQR()">⬛ QR</button>
+  </div>
+
+  <video id="video" autoplay playsinline></video>
+
+  <div class="qr-box">
+    <canvas id="qrCanvas"></canvas>
+  </div>
+</div>
+
+<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+<script>
+/* ====== CẤU HÌNH BẢO MẬT ====== */
+const EDIT_PASSWORD = "SPX2026"; // 🔐 ĐỔI MẬT KHẨU Ở ĐÂY
+
+/* ====== MARQUEE ====== */
+const marqueeText = document.getElementById('marqueeText');
+const savedText = localStorage.getItem("spx_marquee");
+if (savedText) marqueeText.innerText = savedText;
+
+let pressTimer;
+document.getElementById('marquee').addEventListener('touchstart', startEdit);
+document.getElementById('marquee').addEventListener('mousedown', startEdit);
+
+document.addEventListener('touchend', cancelEdit);
+document.addEventListener('mouseup', cancelEdit);
+
+function startEdit() {
+  pressTimer = setTimeout(() => {
+    const pass = prompt("Nhập mật khẩu chỉnh nội dung:");
+    if (pass === EDIT_PASSWORD) {
+      const newText = prompt("Nhập nội dung mới:");
+      if (newText) {
+        marqueeText.innerText = newText;
+        localStorage.setItem("spx_marquee", newText);
+      }
+    } else {
+      alert("Sai mật khẩu!");
+    }
+  }, 3000);
+}
+
+function cancelEdit() {
+  clearTimeout(pressTimer);
+}
+
+/* ====== CAMERA + QR ====== */
+const video = document.getElementById('video');
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+
+async function startScan() {
+  video.style.display = 'block';
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment' }
+  });
+  video.srcObject = stream;
+  requestAnimationFrame(scanFrame);
+}
+
+function scanFrame() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(img.data, canvas.width, canvas.height);
+    if (code) {
+      document.getElementById('code').value = code.data;
+      stopCamera();
+      makeQR();
+      return;
+    }
+  }
+  requestAnimationFrame(scanFrame);
+}
+
+function stopCamera() {
+  const stream = video.srcObject;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  video.style.display = 'none';
+}
+
+function pasteCode() {
+  navigator.clipboard.readText().then(t => {
+    document.getElementById('code').value = t;
+    makeQR();
+  });
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(document.getElementById('code').value);
+}
+
+function makeQR() {
+  const val = document.getElementById('code').value;
+  if (!val) return;
+  QRCode.toCanvas(
+    document.getElementById('qrCanvas'),
+    val,
+    { width: 220, margin: 1, color: { dark: '#000', light: '#fff' } }
+  );
+}
+</script>
+</body>
+</html>

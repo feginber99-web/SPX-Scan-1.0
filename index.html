@@ -26,7 +26,7 @@ body {
   box-sizing: border-box;
 }
 
-/* 🔴 DÒNG CHỮ CHẠY */
+/* 🔴 MARQUEE */
 .marquee {
   background: #ff6a00;
   color: #fff;
@@ -109,18 +109,36 @@ video {
   margin-top: 10px;
   display: none;
 }
+
+/* 🔔 TOAST */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 9999;
+}
+
+.toast.show {
+  opacity: 1;
+}
 </style>
 </head>
 
 <body>
 <div class="app">
 
-  <!-- 🔴 MARQUEE -->
   <div class="marquee" id="marquee">
     <span id="marqueeText">THÔNG BÁO NỘI BỘ SPX – CHỈ DÙNG CHO NHÂN SỰ</span>
   </div>
 
-  <!-- LOGO SPX -->
   <div class="logo">
     <img src="https://upload.wikimedia.org/wikipedia/commons/2/2e/Shopee_Express_logo.svg">
   </div>
@@ -143,12 +161,14 @@ video {
   </div>
 </div>
 
+<div id="toast" class="toast"></div>
+
 <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 <script>
 /* ====== CẤU HÌNH BẢO MẬT ====== */
-const EDIT_PASSWORD = "SPX2026"; // 🔐 ĐỔI MẬT KHẨU Ở ĐÂY
+const EDIT_PASSWORD = "SPX2026";
 
 /* ====== MARQUEE ====== */
 const marqueeText = document.getElementById('marqueeText');
@@ -158,7 +178,6 @@ if (savedText) marqueeText.innerText = savedText;
 let pressTimer;
 document.getElementById('marquee').addEventListener('touchstart', startEdit);
 document.getElementById('marquee').addEventListener('mousedown', startEdit);
-
 document.addEventListener('touchend', cancelEdit);
 document.addEventListener('mouseup', cancelEdit);
 
@@ -171,14 +190,24 @@ function startEdit() {
         marqueeText.innerText = newText;
         localStorage.setItem("spx_marquee", newText);
       }
-    } else {
-      alert("Sai mật khẩu!");
-    }
+    } else alert("Sai mật khẩu!");
   }, 3000);
 }
 
 function cancelEdit() {
   clearTimeout(pressTimer);
+}
+
+/* ====== RUNG + TOAST ====== */
+function vibrate(ms = 200) {
+  if (navigator.vibrate) navigator.vibrate(ms);
+}
+
+function showToast(text) {
+  const toast = document.getElementById('toast');
+  toast.innerText = text;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
 /* ====== CAMERA + QR ====== */
@@ -201,9 +230,11 @@ function scanFrame() {
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(img.data, canvas.width, canvas.height);
-    if (code) {
-      document.getElementById('code').value = code.data;
+    const qr = jsQR(img.data, canvas.width, canvas.height);
+    if (qr) {
+      document.getElementById('code').value = qr.data;
+      vibrate(300);
+      showToast("📦 Quét thành công");
       stopCamera();
       makeQR();
       return;
@@ -226,7 +257,12 @@ function pasteCode() {
 }
 
 function copyCode() {
-  navigator.clipboard.writeText(document.getElementById('code').value);
+  const val = document.getElementById('code').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(() => {
+    vibrate(150);
+    showToast("✅ Đã sao chép mã vận đơn");
+  });
 }
 
 function makeQR() {
@@ -235,7 +271,7 @@ function makeQR() {
   QRCode.toCanvas(
     document.getElementById('qrCanvas'),
     val,
-    { width: 220, margin: 1, color: { dark: '#000', light: '#fff' } }
+    { width: 220, margin: 1 }
   );
 }
 </script>
